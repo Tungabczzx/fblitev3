@@ -9,6 +9,8 @@ class FBLinkOpenerPro:
         self.root = root
         root.title("Facebook Lite Link Opener Pro")
         root.geometry("750x650")
+
+        # Khởi tạo giao diện
         self.create_widgets()
         self.refresh_devices()
 
@@ -87,7 +89,7 @@ class FBLinkOpenerPro:
         ttk.Label(self.input_frame, text="🔢 UID Profile:").pack(side="left")
         self.profile_entry.pack(side="left", padx=5)
 
-        # Các ô nhập cho group, post, personal_post sẽ được tạo lại ở toggle_input_fields
+        # Các ô nhập cho group, post, và personal_post sẽ được tạo lại ở toggle_input_fields
 
         # Nút thực thi
         self.execute_btn = ttk.Button(
@@ -155,14 +157,19 @@ class FBLinkOpenerPro:
         self.console.config(state='disabled')
 
     def extract_post_info(self, input_str):
-        # Pattern cho bài viết trong nhóm
-        post_pattern = r"(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/groups\/(\d+)\/permalink\/(\d+)"
+        """
+        Cập nhật pattern để xử lý cả link dạng:
+        https://www.facebook.com/groups/phonefarm/permalink/1223024136317099/?sale_post_id=1223024136317099&app=fbl
+        và
+        https://www.facebook.com/groups/phonefarm/permalink/1223024136317099/?sale_post_id=1223024136317099&mibextid=rS40aB7S9Ucbxw6v
+        """
+        post_pattern = r"(?:https?:\/\/)?(?:www\.|m\.)?facebook\.com\/groups\/([\w\.]+)\/permalink\/(\d+)(?:\/)?(?:\?.*)?"
         post_match = re.search(post_pattern, input_str)
         if post_match:
             return post_match.groups()  # (group_id, post_id)
         
         # Pattern cho ID bài viết dạng số (groupid_postid)
-        if re.match(r"^\d+_\d+$", input_str):
+        if re.match(r"^[\w\.]+_\d+$", input_str):
             return input_str.split('_')
         
         return None, None
@@ -197,6 +204,7 @@ class FBLinkOpenerPro:
                 if not profile_id:
                     self.log_message("❌ Vui lòng nhập UID Profile")
                     return False
+                
                 profile_id = re.sub(r"\D", "", profile_id)
                 url = f"fb://profile/{profile_id}"
                 result = device.shell(f'am start -a android.intent.action.VIEW -d "{url}" {FB_LITE_PACKAGE}')
@@ -210,19 +218,20 @@ class FBLinkOpenerPro:
                 if not group_input:
                     self.log_message("❌ Vui lòng nhập Group UID/URL")
                     return False
+                
                 group_id = self.extract_group_id(group_input)
                 if not group_id:
                     self.log_message("❌ Group UID/URL không hợp lệ")
                     return False
 
-                # Dùng đoạn code đã hoạt động: deep link dạng intent
+                # Dùng deep link dạng intent như đoạn code bạn đã xác nhận hoạt động
                 deep_link = f"intent://groups/{group_id}#Intent;scheme=fb;package={FB_LITE_PACKAGE};end"
                 result = device.shell(f'am start -a android.intent.action.VIEW -d "{deep_link}"')
                 if "Error" not in result:
                     self.log_message(f"👥 Đã mở nhóm qua intent deep link: {group_id}")
                     return True
 
-                # Fallback sang mở qua URL web nếu intent không thành công
+                # Fallback: mở qua URL web nếu intent không thành công
                 web_url = f"https://m.facebook.com/groups/{group_id}/"
                 result = device.shell(f'am start -a android.intent.action.VIEW -d "{web_url}"')
                 if "Error" in result:
@@ -235,10 +244,12 @@ class FBLinkOpenerPro:
                 if not post_link:
                     self.log_message("❌ Vui lòng nhập link bài viết")
                     return False
+                
                 group_id, post_id = self.extract_post_info(post_link)
                 if not group_id or not post_id:
                     self.log_message("❌ Link bài viết không hợp lệ")
                     return False
+                
                 web_url = f"https://m.facebook.com/groups/{group_id}/posts/{post_id}/"
                 result = device.shell(f'am start -a android.intent.action.VIEW -d "{web_url}"')
                 if "Error" in result:
@@ -251,10 +262,12 @@ class FBLinkOpenerPro:
                 if not personal_post_link:
                     self.log_message("❌ Vui lòng nhập link bài viết từ trang cá nhân")
                     return False
+                
                 profile, post_id = self.extract_personal_post_info(personal_post_link)
                 if not profile or not post_id:
                     self.log_message("❌ Link bài viết từ trang cá nhân không hợp lệ")
                     return False
+                
                 web_url = f"https://m.facebook.com/{profile}/posts/{post_id}/"
                 result = device.shell(f'am start -a android.intent.action.VIEW -d "{web_url}"')
                 if "Error" in result:
@@ -270,10 +283,12 @@ class FBLinkOpenerPro:
         if not hasattr(self, 'devices') or not self.devices:
             messagebox.showwarning("Cảnh báo", "📵 Không tìm thấy thiết bị!")
             return
+
         selected_indices = self.device_list.curselection()
         if not selected_indices:
             messagebox.showwarning("Cảnh báo", "📱 Vui lòng chọn ít nhất 1 thiết bị!")
             return
+
         Thread(target=self.execute_commands, args=(selected_indices,), daemon=True).start()
 
     def execute_commands(self, selected_indices):
